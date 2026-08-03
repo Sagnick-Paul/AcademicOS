@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"D:/AI ML/projects/AcademicOS/.venv/Scripts/python.exe\" -m pip install --quiet email-validator==2.2.0)"
+    ]
+  }
+}

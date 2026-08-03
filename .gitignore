@@ -1,0 +1,75 @@
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ----------------------------
+# Virtual Environments
+# ----------------------------
+.venv/
+venv/
+env/
+
+# ----------------------------
+# IDE
+# ----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----------------------------
+# Environment Variables
+# ----------------------------
+.env
+.env.local
+.env.*.local
+
+# ----------------------------
+# Logs
+# ----------------------------
+logs/
+*.log
+
+# ----------------------------
+# Runtime Uploads
+# ----------------------------
+backend/app/uploads/*
+!backend/app/uploads/.gitkeep
+
+backend/app/static/generated/*
+
+# ----------------------------
+# Alembic
+# ----------------------------
+backend/alembic/__pycache__/
+
+# ----------------------------
+# SQLite
+# ----------------------------
+*.db
+*.sqlite3
+
+# ----------------------------
+# Frontend
+# ----------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# ----------------------------
+# OS Files
+# ----------------------------
+.DS_Store
+Thumbs.db

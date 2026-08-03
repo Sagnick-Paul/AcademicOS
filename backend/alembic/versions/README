@@ -1,0 +1,5 @@
+# Versions
+
+Alembic auto-generated migration files live in this directory. One file
+per schema change. Filenames look like `0001_initial.py`; revision IDs
+are managed by Alembic.

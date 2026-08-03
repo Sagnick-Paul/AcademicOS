@@ -1,0 +1,63 @@
+# FastAPI
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Environment
+python-dotenv
+
+# Validation
+pydantic
+pydantic-settings
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+
+# LangChain
+langchain
+langgraph
+langchain-community
+langchain-text-splitters
+
+# Mistral
+langchain-mistralai
+mistralai
+
+# Embeddings
+sentence-transformers
+
+# Vector Database
+qdrant-client
+
+# Document Processing
+pymupdf
+pypdf
+python-pptx
+pillow
+
+# OCR
+paddlepaddle
+paddleocr
+
+# Utilities
+numpy
+pandas
+tqdm
+httpx
+aiofiles
+
+# Logging
+loguru
+
+# Optional Development
+ipython
+pytest
+black
+isort

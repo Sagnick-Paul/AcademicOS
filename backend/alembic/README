@@ -1,0 +1,19 @@
+# Alembic migrations
+
+Database schema migrations live here.
+
+## Common commands
+
+```bash
+# Generate a new migration from current models
+alembic revision --autogenerate -m "describe change"
+
+# Apply migrations
+alembic upgrade head
+
+# Roll back one revision
+alembic downgrade -1
+```
+
+Generated revision files land in `versions/`. Each file is a forward
+(`upgrade`) and backward (`downgrade`) step applied to the database.
