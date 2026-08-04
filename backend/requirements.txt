@@ -10,6 +10,7 @@ email-validator==2.2.0
 
 # --- Database ---
 SQLAlchemy==2.0.30
+
 asyncpg==0.29.0
 alembic==1.13.2
 psycopg2-binary==2.9.9
@@ -48,3 +49,4 @@ structlog==24.2.0
 pytest==8.2.2
 pytest-asyncio==0.23.7
 pytest-cov==5.0.0
+aiosqlite==0.20.0  # SQLite async driver for tests

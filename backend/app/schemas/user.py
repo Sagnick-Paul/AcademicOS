@@ -24,6 +24,14 @@ class UserBase(BaseModel):
     full_name: NameStr
     email: EmailStr
 
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def _trim_full_name(cls, value: str) -> str:
+        """Strip surrounding whitespace from names so the DB stays clean."""
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
     @field_validator("email", mode="before")
     @classmethod
     def _normalize_email(cls, value: str) -> str:

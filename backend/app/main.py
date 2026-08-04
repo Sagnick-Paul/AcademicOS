@@ -1,14 +1,17 @@
 """FastAPI application entry point.
 
-Boilerplate for the AcademicOS backend. Wires the FastAPI app, registers
-middleware, mounts API routers, and exposes a health endpoint. Business
-logic, authentication, and database integration will be added later.
+Wires the FastAPI app, registers middleware, mounts API routers, and
+exposes a health endpoint. Business logic lives in services; the
+HTTP layer here is glue.
 """
 from __future__ import annotations
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 
+# pyrefly: ignore [missing-import]
 from app.core.config import settings
 from app.core.logging import configure_logging
 
@@ -40,8 +43,17 @@ def create_application() -> FastAPI:
         """Lightweight liveness probe."""
         return {"status": "ok"}
 
-    # Routers will be registered here as they are implemented.
-    # app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    # Mount the v1 API. Importing the endpoint modules here (rather than
+    # inside ``app.api.v1``) keeps that package import-side-effect-free
+    # so a test can import the router without triggering route
+    # registration.
+    from app.api.v1 import api_router
+    from app.api.v1.endpoints import auth as _auth  # noqa: F401
+    from app.api.v1.endpoints import documents as _documents  # noqa: F401
+
+    api_router.include_router(_auth.router, prefix="/auth", tags=["auth"])
+    api_router.include_router(_documents.router, prefix="/documents", tags=["documents"])
+    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     return app
 

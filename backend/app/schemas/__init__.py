@@ -3,6 +3,7 @@
 Separate from ORM models so the wire format can evolve independently.
 Organize by aggregate (e.g. `user.py`, `document.py`).
 """
+from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.chat import (
     ChatMessageCreate,
     ChatMessageResponse,
@@ -27,6 +28,8 @@ __all__ = [
     "UserUpdate",
     "UserResponse",
     "UserInDB",
+    "LoginRequest",
+    "TokenResponse",
     "DocumentCreate",
     "DocumentUpdate",
     "DocumentResponse",
