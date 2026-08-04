@@ -10,7 +10,7 @@ from __future__ import annotations
 from uuid import UUID
 
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, BackgroundTasks
 # pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,6 +52,7 @@ async def _commit(session: AsyncSession) -> None:
     summary="Upload a document",
 )
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current: User = Depends(get_current_active_user),
     service: DocumentService = Depends(get_document_service),
@@ -88,6 +89,10 @@ async def upload_document(
         ) from None
 
     await _commit(service.session)
+
+    # Queue the document processing pipeline to run in the background
+    background_tasks.add_task(service.process_document, doc.id)
+
     return DocumentResponse.model_validate(doc)
 
 

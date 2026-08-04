@@ -164,6 +164,14 @@ class DocumentService:
         )
 
         await self.storage.delete(doc.storage_path)
+        # Attempt to delete processing sidecar if it exists
+        try:
+            sidecar_path = f"{doc.storage_path}.processing.json"
+            if await self.storage.exists(sidecar_path):
+                await self.storage.delete(sidecar_path)
+        except Exception as exc:
+            self.logger.warning("Failed to delete sidecar for %s: %s", doc.id, exc)
+
         await self.repo.delete(doc)
         self.logger.info(
             "document.deleted id=%s owner=%s path=%s",
@@ -171,3 +179,63 @@ class DocumentService:
             owner_id,
             doc.storage_path,
         )
+
+    # ---------- Document Processing ----------
+
+    async def process_document(self, document_id: UUID) -> None:
+        """Run the document processing pipeline on the target document.
+
+        Updates the database status to PROCESSING, runs extraction, cleaning, and
+        chunking, saves the result as a sidecar JSON file, and sets the status to
+        READY (or FAILED on error).
+        """
+        doc = await self.repo.get_by_id(document_id)
+        if not doc:
+            self.logger.error("Processing failed: document %s not found in DB", document_id)
+            return
+
+        # 1. Update status to PROCESSING
+        await self.repo.set_status(doc, DocumentUploadStatus.PROCESSING)
+        await self.session.commit()
+
+        try:
+            from pathlib import Path
+            import json
+            from app.core.config import settings
+            from app.processing.pipeline import DocumentProcessingPipeline
+
+            # Resolve absolute path to the uploaded file, respecting isolated storage in tests
+            if hasattr(self.storage, "base_dir"):
+                file_path = self.storage.base_dir / doc.storage_path
+            else:
+                file_path = Path(settings.UPLOAD_DIR) / doc.storage_path
+
+            # 2. Run pipeline
+            pipeline = DocumentProcessingPipeline()
+            result = await pipeline.run(
+                file_path=file_path,
+                file_type=doc.file_type,
+                filename=doc.original_filename,
+                file_size=doc.file_size,
+            )
+
+            # 3. Save sidecar JSON next to the original file
+            result_json = result.model_dump_json(indent=2)
+            sidecar_name = f"{doc.filename}.processing.json"
+            await self.storage.save(
+                content=result_json.encode("utf-8"),
+                stored_name=sidecar_name,
+                file_type=doc.file_type,
+            )
+
+            # 4. Mark READY
+            await self.repo.set_status(doc, DocumentUploadStatus.READY)
+            await self.session.commit()
+            self.logger.info("document.processed.success id=%s", document_id)
+
+        except Exception as exc:
+            self.logger.error("document.processed.failed id=%s error=%s", document_id, exc, exc_info=True)
+            # Mark FAILED
+            await self.repo.set_status(doc, DocumentUploadStatus.FAILED)
+            await self.session.commit()
+
