@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Sequence
 from uuid import UUID, uuid4
 
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -210,14 +211,26 @@ class DocumentService:
             else:
                 file_path = Path(settings.UPLOAD_DIR) / doc.storage_path
 
-            # 2. Run pipeline
-            pipeline = DocumentProcessingPipeline()
+            # 2. Run pipeline with dependency injection
+            from app.processing.embeddings.provider import SentenceTransformerEmbeddingProvider
+            from app.processing.embeddings.qdrant import QdrantVectorStore
+
+            provider = SentenceTransformerEmbeddingProvider()
+            vector_store = QdrantVectorStore()
+
+            pipeline = DocumentProcessingPipeline(
+                embedding_provider=provider,
+                vector_store=vector_store,
+            )
             result = await pipeline.run(
                 file_path=file_path,
                 file_type=doc.file_type,
                 filename=doc.original_filename,
                 file_size=doc.file_size,
+                document_id=doc.id,
+                owner_id=doc.owner_id,
             )
+
 
             # 3. Save sidecar JSON next to the original file
             result_json = result.model_dump_json(indent=2)

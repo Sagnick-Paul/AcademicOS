@@ -4,7 +4,9 @@
       "Bash(\"D:/AI ML/projects/AcademicOS/.venv/Scripts/python.exe\" -m pip install --quiet email-validator==2.2.0)",
       "Bash(python -m pytest app/tests/test_auth.py -v)",
       "Bash(find . -type d -not -path '*/\\\\__pycache__*' -not -path '*/\\\\.venv*' -not -path '*/node_modules*')",
-      "Bash(find . -type f -not -path '*/\\\\__pycache__*' -not -path '*/\\\\.venv*' -not -path '*/node_modules*' -not -path '*/.git/*')"
+      "Bash(find . -type f -not -path '*/\\\\__pycache__*' -not -path '*/\\\\.venv*' -not -path '*/node_modules*' -not -path '*/.git/*')",
+      "Bash(ENVIRONMENT=test python -m pytest app/tests -q --no-header --tb=line)",
+      "Bash(ENVIRONMENT=test python -m pytest app/tests/test_search.py -k \"deterministic_order or ownership_filter or document_filter\" --tb=long)"
     ]
   }
 }

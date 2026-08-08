@@ -22,6 +22,11 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.schemas.search import (
+    SearchRequest,
+    RetrievedChunk,
+    SearchResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -38,4 +43,7 @@ __all__ = [
     "ChatSessionResponse",
     "ChatMessageCreate",
     "ChatMessageResponse",
+    "SearchRequest",
+    "RetrievedChunk",
+    "SearchResponse",
 ]

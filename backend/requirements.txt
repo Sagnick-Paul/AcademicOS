@@ -1,52 +1,58 @@
 # --- Web framework ---
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-python-multipart==0.0.9
+fastapi
+uvicorn[standard]
+python-multipart
 
 # --- Settings / config ---
-pydantic==2.7.1
-pydantic-settings==2.3.3
-email-validator==2.2.0
+pydantic
+pydantic-settings
+email-validator
 
 # --- Database ---
-SQLAlchemy==2.0.30
+SQLAlchemy
 
-asyncpg==0.29.0
-alembic==1.13.2
-psycopg2-binary==2.9.9
+asyncpg
+alembic
+psycopg2-binary
 
 # --- Auth / security ---
-passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
+passlib[bcrypt]
+python-jose[cryptography]
 
 # --- HTTP clients ---
-httpx==0.27.0
+httpx
 
 # --- LangChain / LangGraph / RAG / embeddings ---
-langchain==0.2.0
-langgraph==0.0.50
-langchain-openai==0.1.7
-langchain-community==0.2.0
-qdrant-client==1.9.0
+langchain
+langgraph
+langchain-openai
+langchain-community
+qdrant-client
 
 # --- Document parsing & OCR ---
-pypdf==4.2.0
-python-docx==1.1.0
-pytesseract==0.3.10
-Pillow==10.3.0
+pypdf
+python-docx
+pytesseract
+Pillow
 
 # --- Storage ---
-boto3==1.34.131
+boto3
 
 # --- Background workers ---
-arq==0.25.0
-redis==5.0.6
+arq
+redis
 
 # --- Logging / observability ---
-structlog==24.2.0
+structlog
 
 # --- Testing ---
-pytest==8.2.2
-pytest-asyncio==0.23.7
-pytest-cov==5.0.0
-aiosqlite==0.20.0  # SQLite async driver for tests
+pytest
+pytest-asyncio
+pytest-cov
+aiosqlite  # SQLite async driver for tests
+
+# --- Additional packages ---
+sentence-transformers   
+
+anyio
+qdrant-client

@@ -38,7 +38,14 @@ class Settings(BaseSettings):
     # Database (placeholders — wire up with PostgreSQL later)
     DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/academicos"
 
-    # Qdrant vector store (placeholder)
+    # Embeddings configuration
+    EMBEDDING_PROVIDER: str = "local"  # "local", "openai", "gemini", etc.
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSION: int = 384
+
+    # Qdrant vector store
+    QDRANT_HOST: str = "localhost"
+    QDRANT_PORT: int = 6333
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION: str = "academicos"
@@ -55,6 +62,16 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Advanced retrieval (Phase 2 — Step 4)
+    # Reciprocal Rank Fusion constant; larger values reduce rank-gap sensitivity.
+    RRF_K: int = 60
+    # Weight of min-max normalised dense score in the final rerank formula.
+    RERANK_ALPHA: float = 0.7
+    # Weight of min-max normalised RRF score in the final rerank formula.
+    RERANK_BETA: float = 0.3
+    # Multiplier applied to top_k when fetching candidates from each backend.
+    CANDIDATE_MULTIPLIER: int = 3
 
 
 @lru_cache

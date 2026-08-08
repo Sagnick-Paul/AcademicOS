@@ -14,10 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # pyrefly: ignore [missing-import]
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
+settings.ENVIRONMENT = "test"
+
+
 from app.api.deps import _db_session_dep  # noqa: PLC2701 – intentional override target
 from app.db import models  # noqa: F401 – registers ORM models on Base.metadata
 from app.db.base import Base
 from app.main import app
+
 
 
 @pytest_asyncio.fixture(scope="function")

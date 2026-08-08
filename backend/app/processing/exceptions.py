@@ -24,3 +24,14 @@ class ChunkingFailed(ProcessingError):
 class ProcessingFailed(ProcessingError):
     """Raised when the document processing pipeline fails overall."""
     pass
+
+
+class EmbeddingGenerationFailed(ProcessingError):
+    """Raised when embedding generation fails."""
+    pass
+
+
+class VectorStoreError(ProcessingError):
+    """Raised when any vector database operations fail."""
+    pass
+

@@ -25,6 +25,7 @@ from app.db.repositories.user_repository import UserRepository
 from app.db.session import get_db
 from app.services.auth_service import AuthService
 from app.services.document_service import DocumentService
+from app.services.retrieval_service import RetrievalService
 
 
 __all__ = [
@@ -34,9 +35,11 @@ __all__ = [
     "get_user_repository",
     "get_auth_service",
     "get_document_service",
+    "get_retrieval_service",
     "get_current_user",
     "get_current_active_user",
 ]
+
 
 
 # ---------- Settings ----------
@@ -95,6 +98,17 @@ def get_document_service(
 ) -> DocumentService:
     """FastAPI dependency yielding a fresh :class:`DocumentService`."""
     return DocumentService(session)
+
+
+def get_retrieval_service() -> RetrievalService:
+    """FastAPI dependency yielding a fresh :class:`RetrievalService`."""
+    from app.processing.embeddings.provider import SentenceTransformerEmbeddingProvider
+    from app.processing.embeddings.qdrant import QdrantVectorStore
+
+    provider = SentenceTransformerEmbeddingProvider()
+    vector_store = QdrantVectorStore()
+    return RetrievalService(embedding_provider=provider, vector_store=vector_store)
+
 
 
 # ---------- Current user ----------
