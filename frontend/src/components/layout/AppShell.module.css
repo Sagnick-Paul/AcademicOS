@@ -1,0 +1,23 @@
+.shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: var(--bg-canvas);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileOnlyTopBar {
+  display: block;
+}
+
+@media (min-width: 900px) {
+  .mobileOnlyTopBar {
+    display: none;
+  }
+}

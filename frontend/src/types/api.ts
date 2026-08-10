@@ -22,6 +22,9 @@ export class APIError extends Error {
 /** 204 / void response. */
 export type NoContent = void;
 
+/** Alias for void used by API call sites that want a named token. */
+export type Void = void;
+
 /** Common list-pagination shape used by `?skip=&limit=` endpoints. */
 export interface PageParams {
   skip?: number;
