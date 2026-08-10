@@ -50,9 +50,18 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION: str = "academicos"
 
-    # LLM provider keys (placeholders)
+    # LLM configuration (Phase 2 — Step 5: RAG)
+    # LLM_PROVIDER selects the active provider; supported: "gemini", "mock".
+    # "mock" is forced automatically when ENVIRONMENT == "test".
+    LLM_PROVIDER: str = "gemini"
+    # Model identifier passed to the provider (e.g. "gemini-1.5-flash").
+    LLM_MODEL: str = "gemini-1.5-flash"
+    # Provider keys (placeholders — set real values in your local .env).
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    # Override only for testing / proxying Gemini; defaults to the public host.
+    GEMINI_API_BASE: str = "https://generativelanguage.googleapis.com/v1beta"
 
     # Storage
     UPLOAD_DIR: str = "app/uploads"
@@ -72,6 +81,17 @@ class Settings(BaseSettings):
     RERANK_BETA: float = 0.3
     # Multiplier applied to top_k when fetching candidates from each backend.
     CANDIDATE_MULTIPLIER: int = 3
+
+    # Chat / conversation layer (Phase 3)
+    # Maximum number of recent messages to include in the LLM prompt.
+    # Bounds prompt size; older context is dropped on the floor.
+    CHAT_HISTORY_MESSAGE_LIMIT: int = 10
+    # Soft cap on the characters of any single historical message that
+    # we forward to the LLM. Anything longer is truncated. Keeps the
+    # conversation block bounded regardless of user input.
+    CHAT_HISTORY_MESSAGE_CHAR_LIMIT: int = 1000
+    # Cap on the rendered conversation block to defend against abuse.
+    CHAT_HISTORY_TOTAL_CHAR_LIMIT: int = 6000
 
 
 @lru_cache

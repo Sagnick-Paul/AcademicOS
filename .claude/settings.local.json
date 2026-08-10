@@ -6,7 +6,17 @@
       "Bash(find . -type d -not -path '*/\\\\__pycache__*' -not -path '*/\\\\.venv*' -not -path '*/node_modules*')",
       "Bash(find . -type f -not -path '*/\\\\__pycache__*' -not -path '*/\\\\.venv*' -not -path '*/node_modules*' -not -path '*/.git/*')",
       "Bash(ENVIRONMENT=test python -m pytest app/tests -q --no-header --tb=line)",
-      "Bash(ENVIRONMENT=test python -m pytest app/tests/test_search.py -k \"deterministic_order or ownership_filter or document_filter\" --tb=long)"
+      "Bash(ENVIRONMENT=test python -m pytest app/tests/test_search.py -k \"deterministic_order or ownership_filter or document_filter\" --tb=long)",
+      "Bash(../.venv/Scripts/python.exe -m pytest app/tests -q --no-header)",
+      "Bash(../.venv/Scripts/python.exe -m pytest app/tests --tb=no -q)",
+      "Bash(../.venv/Scripts/python.exe -m pytest app/tests/test_search.py::test_qdrant_keyword_search_matches_terms -v)",
+      "Bash(../.venv/Scripts/python.exe -m pytest \"app/tests/test_search.py::test_qdrant_keyword_search_deterministic_order\" \"app/tests/test_search.py::test_qdrant_keyword_search_ownership_filter\" \"app/tests/test_search.py::test_qdrant_keyword_search_document_filter\" -v)",
+      "Bash(../.venv/Scripts/python.exe -c ' *)",
+      "Bash(../.venv/Scripts/python.exe -m pip show qdrant-client)",
+      "WebSearch",
+      "Bash(../.venv/Scripts/python.exe *)",
+      "Bash(python *)",
+      "Bash(ENVIRONMENT=test python *)"
     ]
   }
 }

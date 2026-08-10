@@ -155,6 +155,15 @@ class QdrantVectorStore(BaseVectorStore):
            (case-insensitive substring match).
         2. Ascending by chunk_id as a stable tie-breaker.
 
+        Implementation note
+        -------------------
+        The chunk text is indexed at ``payload.text_search`` (the
+        lowercased form) by the processing pipeline. We query that field
+        with lowercased terms so the in-memory Qdrant backend used in
+        tests — whose ``MatchText`` substring check is case-sensitive —
+        agrees with the production Qdrant server, whose ``MatchText`` is
+        documented as case-insensitive.
+
         The ``score`` field carries the raw term-match count so the caller can
         apply normalisation before weighting.
 
@@ -170,19 +179,26 @@ class QdrantVectorStore(BaseVectorStore):
 
             base_conditions = self._build_exact_filter(filter_dict)
 
-            # Fetch candidates matching ANY query term via OR over MatchText filters.
-            # Qdrant scroll + MatchText gives us the matched set; we score them
-            # ourselves to achieve a deterministic, reproducible ordering.
+            # Lowercase the query terms here as a safety net. The retrieval
+            # service already tokenizes to lowercase, but if a future caller
+            # passes mixed-case terms, the indexed payload is lowercase, so
+            # the comparison would otherwise miss.
+            terms_lower = [t.lower() for t in query_terms if t and t.strip()]
+            terms_lower = [t for t in terms_lower if t]
+            if not terms_lower:
+                return []
+
+            # Match the dedicated ``text_search`` field (the lowercased copy
+            # written by the processing pipeline). Using a flat top-level
+            # field avoids ambiguity in nested-key extraction across
+            # qdrant-client versions.
             should_conditions = [
                 models.FieldCondition(
-                    key="metadata.text",
+                    key="text_search",
                     match=models.MatchText(text=term),
                 )
-                for term in query_terms
-                if term.strip()
+                for term in terms_lower
             ]
-            if not should_conditions:
-                return []
 
             scroll_filter = models.Filter(
                 must=base_conditions,
@@ -198,12 +214,18 @@ class QdrantVectorStore(BaseVectorStore):
             )
 
             # Score each point by how many query terms it contains (case-insensitive).
-            terms_lower = [t.lower() for t in query_terms if t.strip()]
             scored: list[tuple[int, str, Any]] = []  # (match_count, chunk_id, point)
             for point in all_points:
                 payload = point.payload or {}
-                text = (payload.get("metadata") or {}).get("text", "").lower()
-                match_count = sum(1 for t in terms_lower if t in text)
+                # Prefer the lowercased index field; fall back to the
+                # original-case text so legacy payloads still match.
+                index_text = payload.get("text_search")
+                if index_text is None:
+                    inner = payload.get("metadata") or {}
+                    index_text = (inner.get("text") or "").lower()
+                else:
+                    index_text = index_text.lower()
+                match_count = sum(1 for t in terms_lower if t in index_text)
                 scored.append((match_count, str(point.id), point))
 
             # Sort: most matches first, then chunk_id ascending for tie-breaking.

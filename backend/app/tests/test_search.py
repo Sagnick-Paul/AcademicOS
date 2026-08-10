@@ -58,7 +58,13 @@ def _make_vec(
     page_number: int = 1,
     chunk_index: int = 0,
 ) -> EmbeddingVector:
-    """Factory for EmbeddingVector objects with the standard payload layout."""
+    """Factory for EmbeddingVector objects with the standard payload layout.
+
+    Mirrors the payload written by ``DocumentProcessingPipeline``: the
+    nested ``metadata.text`` keeps the original case (so ``_vec_to_chunk``
+    returns the readable text), while the top-level ``text_search`` is the
+    lowercased index used by ``QdrantVectorStore.keyword_search_vectors``.
+    """
     return EmbeddingVector(
         chunk_id=str(uuid4()),
         vector=vector or ([0.5] * settings.EMBEDDING_DIMENSION),
@@ -68,6 +74,7 @@ def _make_vec(
             "page_number": page_number,
             "chunk_index": chunk_index,
             "metadata": {"text": text},
+            "text_search": text.lower(),
         },
     )
 
@@ -635,6 +642,88 @@ async def test_qdrant_keyword_search_no_collection() -> None:
         limit=5,
     )
     assert results == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Regression — case-insensitive keyword matching on the in-memory Qdrant
+# backend. The qdrant-client 1.9.0 in-memory backend performs a
+# case-sensitive substring check inside MatchText, while the production
+# Qdrant server documents MatchText as case-insensitive. The pipeline
+# indexes a lowercased ``text_search`` field so both backends behave
+# the same. These tests pin that contract.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_qdrant_keyword_search_returns_matching_chunk() -> None:
+    """A term that exists in the indexed text returns the chunk."""
+    store = QdrantVectorStore()
+    user_id = uuid4()
+    doc_id = uuid4()
+
+    vec = _make_vec(
+        owner_id=user_id,
+        document_id=doc_id,
+        text="Newton's second law: F equals ma",
+    )
+    await _seed_store(store, [vec])
+
+    results = await store.keyword_search_vectors(
+        collection_name=settings.QDRANT_COLLECTION,
+        query_terms=["newton"],
+        limit=5,
+        filter_dict={"owner_id": str(user_id)},
+    )
+    ids = {v.chunk_id for v in results}
+    assert vec.chunk_id in ids
+
+
+@pytest.mark.anyio
+async def test_qdrant_keyword_search_returns_no_match_for_unknown_term() -> None:
+    """A term that does not exist in the indexed text returns nothing."""
+    store = QdrantVectorStore()
+    user_id = uuid4()
+    doc_id = uuid4()
+
+    vec = _make_vec(
+        owner_id=user_id,
+        document_id=doc_id,
+        text="Newton's second law: F equals ma",
+    )
+    await _seed_store(store, [vec])
+
+    results = await store.keyword_search_vectors(
+        collection_name=settings.QDRANT_COLLECTION,
+        query_terms=["galileo"],  # not in the chunk
+        limit=5,
+        filter_dict={"owner_id": str(user_id)},
+    )
+    assert results == []
+
+
+@pytest.mark.anyio
+async def test_qdrant_keyword_search_is_case_insensitive() -> None:
+    """A query term in a different case still matches the chunk."""
+    store = QdrantVectorStore()
+    user_id = uuid4()
+    doc_id = uuid4()
+
+    vec = _make_vec(
+        owner_id=user_id,
+        document_id=doc_id,
+        text="Ohm's Law: V = IR",
+    )
+    await _seed_store(store, [vec])
+
+    # Mixed-case query against a lowercased index field.
+    results = await store.keyword_search_vectors(
+        collection_name=settings.QDRANT_COLLECTION,
+        query_terms=["OHM"],
+        limit=5,
+        filter_dict={"owner_id": str(user_id)},
+    )
+    ids = {v.chunk_id for v in results}
+    assert vec.chunk_id in ids
 
 
 # ─────────────────────────────────────────────────────────────────────────────

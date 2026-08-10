@@ -36,6 +36,8 @@ __all__ = [
     "get_auth_service",
     "get_document_service",
     "get_retrieval_service",
+    "get_rag_service",
+    "get_chat_service",
     "get_current_user",
     "get_current_active_user",
 ]
@@ -108,6 +110,32 @@ def get_retrieval_service() -> RetrievalService:
     provider = SentenceTransformerEmbeddingProvider()
     vector_store = QdrantVectorStore()
     return RetrievalService(embedding_provider=provider, vector_store=vector_store)
+
+
+def get_rag_service(
+    retrieval_service: RetrievalService = Depends(get_retrieval_service),
+) -> "RAGService":
+    """FastAPI dependency yielding a fresh :class:`RAGService`."""
+    # Local import to avoid an import cycle (rag -> services -> rag) and
+    # to keep test imports lightweight.
+    from app.llm.provider import get_llm_provider
+    from app.rag.service import RAGService
+
+    llm_provider = get_llm_provider()
+    return RAGService(
+        retrieval_service=retrieval_service,
+        llm_provider=llm_provider,
+    )
+
+
+def get_chat_service(
+    session: AsyncSession = Depends(_db_session_dep),
+    rag_service: "RAGService" = Depends(get_rag_service),
+) -> "ChatService":
+    """FastAPI dependency yielding a fresh :class:`ChatService`."""
+    from app.services.chat_service import ChatService
+
+    return ChatService(session=session, rag_service=rag_service)
 
 
 

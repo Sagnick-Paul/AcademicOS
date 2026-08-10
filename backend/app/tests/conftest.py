@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -13,6 +14,13 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 # pyrefly: ignore [missing-import]
 from sqlalchemy.pool import StaticPool
+
+# Force the test environment BEFORE any app code imports settings. The
+# LLM provider factory reads ``os.environ["ENVIRONMENT"]`` directly so
+# it must reflect "test" at process start, not just on the cached
+# settings object.
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("LLM_PROVIDER", "mock")
 
 from app.core.config import settings
 settings.ENVIRONMENT = "test"

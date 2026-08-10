@@ -51,10 +51,12 @@ def create_application() -> FastAPI:
     from app.api.v1.endpoints import auth as _auth  # noqa: F401
     from app.api.v1.endpoints import documents as _documents  # noqa: F401
     from app.api.v1.endpoints import search as _search  # noqa: F401
+    from app.api.v1.endpoints import chat as _chat  # noqa: F401
 
     api_router.include_router(_auth.router, prefix="/auth", tags=["auth"])
     api_router.include_router(_documents.router, prefix="/documents", tags=["documents"])
     api_router.include_router(_search.router, prefix="/search", tags=["search"])
+    api_router.include_router(_chat.router, prefix="/chat", tags=["chat"])
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     return app

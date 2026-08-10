@@ -70,10 +70,10 @@ class DocumentProcessingPipeline:
                             page_num = int(page_num)
                         except (ValueError, TypeError):
                             pass
-                    
+
                     payload_metadata = dict(chunk.metadata)
                     payload_metadata["text"] = chunk.text
-                    
+
                     payload = {
                         "document_id": str(document_id) if document_id else None,
                         "owner_id": str(owner_id) if owner_id else None,
@@ -81,6 +81,15 @@ class DocumentProcessingPipeline:
                         "page_number": page_num,
                         "chunk_index": chunk.index,
                         "metadata": payload_metadata,
+                        # Lowercased copy of the chunk text, kept at the top
+                        # level of the payload so keyword search can use it
+                        # as a single, plain ``MatchText`` field. We also
+                        # lowercase it so the keyword path behaves the same
+                        # way against both the real Qdrant server (whose
+                        # ``MatchText`` is documented as case-insensitive)
+                        # and qdrant-client's in-memory backend, where the
+                        # substring check is case-sensitive.
+                        "text_search": chunk.text.lower(),
                     }
                     vectors.append(
                         EmbeddingVector(
