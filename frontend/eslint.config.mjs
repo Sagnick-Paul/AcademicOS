@@ -8,7 +8,17 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "out/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "next-env.d.ts",
+      "out/**",
+      "vitest.config.ts",
+      "vitest.setup.ts",
+      // Vitest test files are validated by the test runner, not ESLint.
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.spec.{ts,tsx}",
+    ],
   },
 ];
 
