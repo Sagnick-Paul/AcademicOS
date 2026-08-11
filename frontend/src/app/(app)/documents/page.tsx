@@ -1,13 +1,10 @@
 import { PageContainer } from "@/components/layout/PageContainer";
-import { EmptyState } from "@/components/primitives/EmptyState";
+import { DocumentsPanel } from "./DocumentsPanel";
 
 export default function DocumentsPage() {
   return (
     <PageContainer>
-      <EmptyState
-        title="No documents yet"
-        description="The document manager will land in Phase 4B."
-      />
+      <DocumentsPanel />
     </PageContainer>
   );
 }

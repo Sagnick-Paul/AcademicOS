@@ -47,7 +47,8 @@ D:/AI ML/projects/AcademicOS/
 | 2 | Document processing + embeddings + RAG retrieval | ✅ Complete |
 | 3 | Chat sessions, messages, sources | ✅ Complete + stabilized |
 | 4A | Frontend foundation (design system, shell, auth wiring, API client, routes) | ✅ Complete |
-| **4B** | **Authentication UI + backend integration** | **✅ Complete** |
+| 4B | Authentication UI + backend integration | ✅ Complete |
+| **4C** | **Dashboard + Core Application Shell** | **✅ Complete** |
 
 ---
 
@@ -193,7 +194,7 @@ pytest -q              # MUST end with 164 passed, 0 failed
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings |
 | `npm run typecheck` | PASS — 0 errors |
-| `npm test` | PASS — **28 passed / 0 failed** across 5 test files |
+| `npm test` | PASS — **47 passed / 0 failed** across 9 test files |
 | `npm run build` | PASS — 7 routes (`/`, `/login`, `/register`, `/dashboard`, `/documents`, `/chat`, `/_not-found`) |
 | `pytest -q` | PASS — **164 passed / 0 failed** |
 
@@ -201,16 +202,169 @@ pytest -q              # MUST end with 164 passed, 0 failed
 
 ## Exact next planned phase
 
-### Phase 4C — Dashboard + Core AcademicOS Application Shell
+### Phase 4D — Document management + Library UI (NOT yet implemented)
 
-Goals (NOT yet implemented):
+Goals:
 
-- Real dashboard data (recent documents, recent chats, study progress).
-- Document upload UI + document library + PDF viewer.
-- Grounded chat composer + conversation sidebar + streaming responses + citation UI.
-- App-wide notifications.
+- Document upload UI (drag-and-drop + click-to-browse) using `documentsApi.upload()`.
+- Library list view that shows each document's filename, upload status, file type, size.
+- Simple document detail view.
+- Wire "recent activity" on the dashboard to show recent `Document.created_at` instead of relying on counts.
+- Use real upload status + per-document error states.
 
-Do NOT start Phase 4C until explicitly authorized. Read this memory first, then read the git log of recent commits, then plan.
+Do NOT start Phase 4D until explicitly authorized. Read this memory first, then read the git log of recent commits, then plan.
+
+---
+
+## Phase 4C — Dashboard + Core AcademicOS Application Shell (summary)
+
+> **Phase 4C scope note.** Phase 4C did **not** redesign Phase 4A/4B
+> infrastructure. It added: (a) a real `/dashboard` with greeting,
+> stats, recent activity, and quick actions; (b) a root-route
+> redirector that respects auth state; (c) a polish pass on the
+> Sidebar's user account area; (d) shared primary-nav config;
+> (e) placeholder `/documents` and `/chat` pages that surface real
+> counts; (f) tests for all of the above. No fake data anywhere.
+
+### Purpose
+
+Build the first real authenticated AcademicOS experience.
+
+### Implemented
+
+- **Application shell** — `AppShell` from Phase 4A wraps every page
+  under `(app)/`. Mobile drawer, persistent desktop sidebar, ESC closes
+  drawer, media-query observer resets drawer on resize.
+- **Sidebar / navigation** — `Sidebar` reads `PRIMARY_NAV` from
+  `src/lib/nav/config.ts` (single source of truth for nav hrefs).
+  Active state uses `isNavItemActive(pathname, href)` with prefix
+  matching. Each `Link` has `aria-current="page"` when active.
+- **Responsive navigation** — Desktop: persistent sidebar. Mobile
+  (`<900px`): sidebar slides in via `TopBar` hamburger; scrim + ESC
+  close the drawer. No horizontal overflow.
+- **User / account area** — `Sidebar` footer shows `user.full_name`
+  (truncated with ellipsis) and `user.email`. Sign-out button calls
+  `useAuth().logout()` directly. No second logout implementation.
+- **Dashboard** — `/dashboard` renders:
+  - A greeting derived from `Date.getHours()` + the user's first name
+    (`Good morning/afternoon/evening, {firstName}`). Falls back to
+    "there" when no user is present.
+  - Two stat cards: **Documents** (from `documentsApi.list()`) and
+    **Conversations** (from `chatApi.listSessions()`). Each shows
+    `{count}` once loaded, or an inline error message if the API fails.
+    Stat cards never crash the shell on failure.
+  - **Recent activity** — empty state when both counts are 0; otherwise
+    a "getting started" message. Never fabricates activity.
+  - **Quick actions** — `Open Documents` → `/documents` and
+    `Start a Chat` → `/chat` (uses `next/link`).
+- **Dashboard API integration** — parallel `useEffect` fetches; each
+  panel owns its own loading/error state. Failures are caught and
+  surfaced, not thrown.
+- **Empty states** — honest counts everywhere. New users see
+  "No documents yet", "No conversations yet", "No recent activity yet".
+- **Loading states** — `<LoadingState>` for dashboard initial load,
+  stat panels show "Loading…".
+- **Error states** — `APIError.message` is rendered in plain English
+  (no stack traces, no JWTs, no backend internals).
+- **Documents / Chat shell integration** — `/documents` and `/chat`
+  pages now live inside `<AppShell>` via `(app)/layout.tsx` and use
+  shared `PageContainer` + `EmptyState` primitives. Each surfaces
+  real document/session counts from the API.
+- **Root route redirect** — `src/app/page.tsx` is now a redirector.
+  Authenticated → `/dashboard`. Unauthenticated → `/login`. Loading
+  state renders a neutral `<LoadingState>` (no marketing hero) so the
+  redirect fires cleanly on first paint.
+- **Accessibility** — `aria-current="page"` on active nav, `aria-label`
+  on the primary nav landmark, `aria-label` on the close-scrim button,
+  `aria-label` on the menu button, semantic `<nav>`/`<aside>`/`<main>`,
+  keyboard ESC closes the drawer, visible focus via the design-token
+  `--focus-ring`.
+
+### Architecture
+
+- **Nav config (new layer)**: `src/lib/nav/config.ts` exports
+  `PRIMARY_NAV` (a `readonly NavItem[]`) and `isNavItemActive()`. The
+  `Sidebar` is the only consumer today; later phases (command palette,
+  breadcrumbs) import from here.
+- **Dashboard data flow**: `Dashboard.tsx` owns two `ResourceState<T>`
+  records (one per panel). Each fetches independently, isolates
+  failures, and renders a status-aware card. No global state.
+- **Stat cards**: extracted into `DocumentStatCard` and
+  `ConversationStatCard` with a shared `StatCard` core. The label
+  drives a `data-testid` for tests.
+- **Honest data**: zero manual seed data. If a backend endpoint is
+  unavailable, the panel shows the error inline — the rest of the
+  shell keeps working.
+
+### Files created in Phase 4C
+
+- `frontend/src/lib/nav/config.ts` — shared nav config + active helper.
+- `frontend/src/app/(app)/dashboard/Dashboard.tsx` — client dashboard.
+- `frontend/src/app/(app)/dashboard/dashboard.module.css` — dashboard styles.
+- `frontend/src/app/(app)/dashboard/__tests__/Dashboard.test.tsx` — 6 tests.
+- `frontend/src/app/(app)/documents/DocumentsPanel.tsx` — client panel.
+- `frontend/src/app/(app)/documents/documents.module.css` — panel styles.
+- `frontend/src/app/(app)/chat/ChatPanel.tsx` — client panel.
+- `frontend/src/app/(app)/chat/chat.module.css` — panel styles.
+- `frontend/src/app/__tests__/page.test.tsx` — root-route redirect tests.
+- `frontend/src/app/(app)/__tests__/layout.test.tsx` — protected shell tests.
+- `frontend/src/components/layout/__tests__/Sidebar.test.tsx` — nav tests.
+
+### Files modified in Phase 4C
+
+- `frontend/src/app/page.tsx` — replaced marketing landing with auth redirector.
+- `frontend/src/app/page.module.css` — removed (no longer used).
+- `frontend/src/app/(app)/dashboard/page.tsx` — now a thin wrapper around `<Dashboard />`.
+- `frontend/src/app/(app)/documents/page.tsx` — now a thin wrapper around `<DocumentsPanel />`.
+- `frontend/src/app/(app)/chat/page.tsx` — now a thin wrapper around `<ChatPanel />`.
+- `frontend/src/components/layout/Sidebar.tsx` — uses shared nav config,
+  user block (full_name + email + sign-out), removed inline styles.
+- `frontend/src/components/layout/Sidebar.module.css` — added `.userBlock`,
+  `.userName`, `.userEmail`, `.signOutButton` classes.
+- `frontend/vitest.setup.ts` — added `window.matchMedia` polyfill for
+  `AppShell`'s media-query observer (jsdom doesn't implement it).
+
+### API endpoints used (Phase 4C)
+
+- `GET /api/v1/auth/me` — already used by AuthContext bootstrap.
+- `GET /api/v1/documents` — for the Documents stat card + `/documents` page count.
+- `GET /api/v1/chat/sessions` — for the Conversations stat card + `/chat` page count.
+
+No new backend endpoints were added. No backend code was modified.
+
+### Testing summary (Phase 4C)
+
+- **Existing tests**: 28 (Phase 4B) — all still pass.
+- **New Phase 4C tests**: 19 across 4 new test files.
+  - `Dashboard.test.tsx` (6): greeting with first name, fallback to "there",
+    empty state (both APIs empty), real counts (non-zero), API failure
+    isolation, quick-action links.
+  - `Sidebar.test.tsx` (7): nav items render, active state on direct hit,
+    prefix matching for nested routes, user full_name + email shown,
+    logout invokes existing `logout()`, scrim only when open, nav link
+    clicks invoke `onClose`.
+  - `page.test.tsx` (3): loading state renders, authenticated → /dashboard,
+    unauthenticated → /login.
+  - `(app)/layout.test.tsx` (3): loading state, unauthenticated redirect,
+    authenticated renders children.
+- **Total frontend tests**: **47 passed / 0 failed** across 9 files.
+- **Backend**: **164 passed / 0 failed**.
+- **ESLint**: PASS.
+- **TypeScript**: PASS.
+- **Build**: PASS (7 routes).
+
+### Known limitations
+
+- The dashboard greeting uses the browser's local time only — no
+  timezone-aware formatting. Acceptable for Phase 4C.
+- Documents and Chat pages are still placeholders that count records
+  but do not render a library or a chat composer. Those belong to
+  later phases.
+- The root route is a client component because it depends on
+  `AuthContext`. No redirect loop; the `(app)/layout.tsx` is the
+  authoritative bounce for unauthenticated users.
+- `jsdom` does not implement `window.matchMedia`. Vitest setup polyfills
+  it so `AppShell` can mount under test.
 
 ---
 

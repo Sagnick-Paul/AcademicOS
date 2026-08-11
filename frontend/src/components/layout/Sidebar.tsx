@@ -5,19 +5,9 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { PRIMARY_NAV, isNavItemActive } from "@/lib/nav/config";
 import type { ReactNode } from "react";
 import styles from "./Sidebar.module.css";
-
-interface NavItem {
-  href: string;
-  label: string;
-}
-
-const PRIMARY_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/documents", label: "Documents" },
-  { href: "/chat", label: "Chat" },
-];
 
 interface Props {
   open: boolean;
@@ -42,15 +32,15 @@ export function Sidebar({ open, onClose }: Props): ReactNode {
         aria-label="Primary navigation"
       >
         <div className={styles.brand}>
-          <Link href="/" onClick={onClose}>
+          <Link href="/dashboard" onClick={onClose} aria-label="AcademicOS home">
             <Logo />
           </Link>
         </div>
 
         <nav className={styles.nav} aria-label="Main">
           <div className={styles.section}>Workspace</div>
-          {PRIMARY_ITEMS.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          {PRIMARY_NAV.map((item) => {
+            const active = isNavItemActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -67,19 +57,21 @@ export function Sidebar({ open, onClose }: Props): ReactNode {
 
         <div className={styles.footer}>
           {user ? (
-            <>
-              <div style={{ fontSize: "var(--text-sm)", color: "var(--fg-secondary)" }}>
+            <div className={styles.userBlock}>
+              <div className={styles.userName} title={user.full_name}>
+                {user.full_name}
+              </div>
+              <div className={styles.userEmail} title={user.email}>
                 {user.email}
               </div>
               <button
                 type="button"
                 onClick={logout}
-                className={styles.link}
-                style={{ background: "transparent", border: "none", cursor: "pointer", width: "100%", textAlign: "left", marginTop: "var(--space-2)" }}
+                className={cn(styles.link, styles.signOutButton)}
               >
                 Sign out
               </button>
-            </>
+            </div>
           ) : (
             <Link href="/login" className={styles.link} onClick={onClose}>
               Sign in

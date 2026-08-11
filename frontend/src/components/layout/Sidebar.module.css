@@ -61,6 +61,40 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.userBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.userName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userEmail {
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signOutButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+}
+
 /* Mobile: hide by default; the TopBar opens a slide-in drawer. */
 @media (max-width: 899px) {
   .sidebar {
