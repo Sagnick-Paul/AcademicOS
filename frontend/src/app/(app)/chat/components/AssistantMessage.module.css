@@ -1,0 +1,25 @@
+.root {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-2) 0;
+}
+
+.bubble {
+  max-width: 90%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.content {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -1,0 +1,18 @@
+.root {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2) 0;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-muted);
+  color: var(--fg-primary);
+  border-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -35,8 +35,14 @@ export interface ChatSession {
   updated_at: string;
 }
 
+/** A message as it appears inside a session history payload. The
+ *  backend persists user messages without a `sources` field, so the
+ *  history is a mix of both shapes — we widen to a union here and let
+ *  consumers narrow at the rendering site. */
+export type ChatSessionMessage = ChatMessage | ChatMessageWithSources;
+
 export interface ChatSessionWithMessages extends ChatSession {
-  messages: ChatMessageWithSources[];
+  messages: ChatSessionMessage[];
 }
 
 export interface ChatSource {

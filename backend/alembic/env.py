@@ -18,12 +18,33 @@ from app.db.base import Base
 
 # Importing the models package registers every model on `Base.metadata`
 # so Alembic autogenerate sees all tables. Add new models there.
-from app.db import models  # noqa: F401
+# `_models` is referenced below purely to keep static analyzers (Pyrefly)
+# from flagging the import as unused; the side effect on `Base.metadata`
+# is what we actually need.
+import app.db.models as _models  # type: ignore[unused-ignore]  # noqa: F401
+_ = _models  # explicit reference to silence "unused import"
 
 config = context.config
 
-# Inject the runtime database URL.
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+def _alembic_database_url() -> str:
+    """Return a *synchronous* DB URL for Alembic.
+
+    The app uses an async driver (`postgresql+asyncpg`) at runtime, but
+    Alembic runs migrations synchronously. Reusing the async URL here
+    triggers `sqlalchemy.exc.MissingGreenlet` because the sync engine
+    tries to await an asyncpg connect. We rewrite `+asyncpg` to
+    `+psycopg2` (which is in `requirements.txt`) so migrations work
+    against the same database without changing app behaviour.
+    """
+    url = settings.DATABASE_URL
+    if url.startswith("postgresql+asyncpg://"):
+        return "postgresql+psycopg2://" + url[len("postgresql+asyncpg://"):]
+    return url
+
+
+# Inject the *sync* database URL.
+config.set_main_option("sqlalchemy.url", _alembic_database_url())
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
