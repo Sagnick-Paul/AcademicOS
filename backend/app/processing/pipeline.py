@@ -37,6 +37,7 @@ class DocumentProcessingPipeline:
         file_size: int,
         document_id: UUID | None = None,
         owner_id: UUID | None = None,
+        course_id: UUID | None = None,
     ) -> ProcessingResult:
         """Execute the document processing pipeline on the target file.
 
@@ -78,6 +79,7 @@ class DocumentProcessingPipeline:
                     payload = {
                         "document_id": str(document_id) if document_id else None,
                         "owner_id": str(owner_id) if owner_id else None,
+                        "course_id": str(course_id) if course_id else None,
                         "chunk_id": chunk_uuid,
                         "page_number": page_num,
                         "chunk_index": chunk.index,

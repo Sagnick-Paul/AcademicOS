@@ -19,7 +19,7 @@ from app.core.config import settings
 
 # Canonical short names stored in ``documents.file_type``.
 SUPPORTED_FILE_TYPES: Final[frozenset[str]] = frozenset(
-    {"pdf", "ppt", "pptx", "png", "jpg", "jpeg"}
+    {"pdf", "ppt", "pptx", "png", "jpg", "jpeg", "txt"}
 )
 
 
@@ -30,6 +30,7 @@ ALLOWED_EXTENSIONS: Final[dict[str, tuple[str, ...]]] = {
     "png": ("png",),
     "jpg": ("jpg", "jpeg"),
     "jpeg": ("jpg", "jpeg"),
+    "txt": ("txt",),
 }
 
 
@@ -45,6 +46,7 @@ ALLOWED_MIME_TYPES: Final[dict[str, tuple[str, ...]]] = {
     "png": ("image/png",),
     "jpg": ("image/jpeg", "image/jpg"),
     "jpeg": ("image/jpeg", "image/jpg"),
+    "txt": ("text/plain",),
 }
 
 
@@ -58,6 +60,7 @@ FOLDER_BY_FILE_TYPE: Final[dict[str, str]] = {
     "png": "images",
     "jpg": "images",
     "jpeg": "images",
+    "txt": "text",
 }
 
 

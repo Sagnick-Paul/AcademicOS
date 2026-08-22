@@ -372,6 +372,7 @@ class DocumentService:
                 file_size=doc.file_size,
                 document_id=doc.id,
                 owner_id=doc.owner_id,
+                course_id=doc.course_id,
             )
 
 
