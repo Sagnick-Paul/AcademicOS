@@ -6,6 +6,9 @@ A `ChatSession` is a conversation owned by a single user. Each
 
 `ChatMessageSource` persists the citations used to ground each
 assistant answer so they survive outside of retrieval calls.
+
+ChatSessions MAY optionally belong to a :class:`Course` (Phase 6B).
+``course_id`` is nullable so existing sessions remain valid.
 """
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ from app.db.base import Base, TimestampMixin, UUIDPKMixin
 from app.db.models.enums import ChatRole
 
 if TYPE_CHECKING:
+    from app.db.models.course import Course
     from app.db.models.user import User
 
 
@@ -28,6 +32,8 @@ class ChatSession(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "chat_sessions"
     __table_args__ = (
         Index("ix_chat_sessions_user_updated", "user_id", "updated_at"),
+        # Common course-scoped listing: "sessions in a course, newest first".
+        Index("ix_chat_sessions_course_updated", "course_id", "updated_at"),
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -39,8 +45,28 @@ class ChatSession(UUIDPKMixin, TimestampMixin, Base):
         String(length=255), nullable=False, default="New chat"
     )
 
+    # Course link (Phase 6B). Optional so sessions can exist outside
+    # any course — backward compatibility with all rows created
+    # before Phase 6B.
+    course_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Document link (Phase 6E). Optional so sessions can be general
+    # or scoped to a specific document.
+    document_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="chat_sessions")
+    course: Mapped[Optional["Course"]] = relationship(
+        "Course", back_populates="chat_sessions"
+    )
     messages: Mapped[List["ChatMessage"]] = relationship(
         "ChatMessage",
         back_populates="session",
@@ -50,7 +76,10 @@ class ChatSession(UUIDPKMixin, TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return f"<ChatSession id={self.id} title={self.title!r}>"
+        return (
+            f"<ChatSession id={self.id} title={self.title!r} "
+            f"course={self.course_id}>"
+        )
 
 
 class ChatMessage(UUIDPKMixin, TimestampMixin, Base):

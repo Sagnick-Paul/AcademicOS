@@ -41,6 +41,8 @@ class Storage(Protocol):
 
     async def exists(self, storage_path: str) -> bool: ...
 
+    async def get_absolute_path(self, storage_path: str) -> Path: ...
+
 
 class LocalStorage:
     """Filesystem-backed :class:`Storage` rooted at ``base_dir``."""
@@ -105,6 +107,9 @@ class LocalStorage:
 
     async def exists(self, storage_path: str) -> bool:
         return self._absolute(storage_path).is_file()
+
+    async def get_absolute_path(self, storage_path: str) -> Path:
+        return self._absolute(storage_path)
 
 
 # ---------- Singleton factory ----------

@@ -50,6 +50,9 @@ D:/AI ML/projects/AcademicOS/
 | 4A | Frontend foundation (design system, shell, auth wiring, API client, routes) | ✅ Complete |
 | 4B | Authentication UI + backend integration | ✅ Complete |
 | **4C** | **Dashboard + Core Application Shell** | **✅ Complete** |
+| 6A | Course Backend Foundation | ✅ Complete |
+| 6B | Course ↔ Documents/ChatSessions | ✅ Complete |
+| **6C** | **Document Types and Metadata** | **✅ Complete** |
 
 ---
 
@@ -387,8 +390,38 @@ Quick reference; full files in `backend/app/api/v1/endpoints/*.py` and `backend/
 ---
 
 ## How the next session should start
-
 1. Read this `memory.md`.
 2. `git log --oneline -10` to see what's been done since.
 3. `git status` to see if anything's in progress.
 4. Plan, then implement. **Do not** reimplement Phase 4A or 4B unless the task explicitly says so.
+
+---
+
+## Phase 6C — Document Types and Metadata (summary)
+
+### Description
+Phase 6C introduces structured academic classification (`document_type`) and metadata (`document_metadata`) to the Document domain model.
+
+### Database Changes
+* **Migration Revision**: `0005_document_type_and_metadata`
+* **Columns Added**:
+  - `document_type`: `VARCHAR(32)`, indexable, nullable on the column.
+  - `document_metadata`: `JSONB` on PostgreSQL (mapped to `JSON` on SQLite). Contains fields: `author`, `subject`, `semester`, `academic_year`, `tags`.
+* CHECK constraints and indexes are established to guarantee data integrity and query speed. Legacy rows are safely handled.
+
+### Filtering Behavior
+* Supports filtering documents by `document_type`.
+* Combines cleanly with `course_id` (from Phase 6B) as an intersection: `?course_id=<course-id>&document_type=<document-type>`.
+
+### Validation
+* Pydantic schemas enforce type strictness on endpoints (`extra="forbid"` on metadata payload schema).
+* Empty tags are dropped, duplicates are case-insensitively deduped, and tags list length is safely capped.
+* API returns `422 Unprocessable Entity` for malformed fields or invalid document types.
+
+### Testing Summary
+* All targeted tests pass successfully:
+  - `test_phase6c.py`: 25 passed
+  - `test_documents.py`: 17 passed
+  - `test_phase6b.py`: 24 passed
+  - `test_courses.py`: 25 passed
+  - **Total**: 91 passed (100% success rate)

@@ -44,6 +44,7 @@ from app.db.repositories.chat_repository import (
     ChatMessageSourceRepository,
     ChatSessionRepository,
 )
+from app.db.repositories.course_repository import CourseRepository
 from app.db.repositories.document_repository import DocumentRepository
 from app.llm.exceptions import LLMError
 from app.rag.context_builder import HistoryTurn
@@ -53,6 +54,7 @@ from app.services.chat_exceptions import (
     ChatMessageEmptyError,
     ChatSessionNotFoundError,
 )
+from app.services.exceptions import CourseNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,7 @@ class ChatService:
         message_repo: Optional[ChatMessageRepository] = None,
         source_repo: Optional[ChatMessageSourceRepository] = None,
         document_repo: Optional[DocumentRepository] = None,
+        course_repo: Optional[CourseRepository] = None,
     ) -> None:
         self.session = session
         self.rag_service = rag_service
@@ -97,6 +100,28 @@ class ChatService:
         self.message_repo = message_repo or ChatMessageRepository(session)
         self.source_repo = source_repo or ChatMessageSourceRepository(session)
         self.document_repo = document_repo or DocumentRepository(session)
+        self.course_repo = course_repo or CourseRepository(session)
+
+    # ------------------------------------------------------------------ #
+    #  Course ownership (Phase 6B)                                        #
+    # ------------------------------------------------------------------ #
+
+    async def _assert_course_owned_by(
+        self,
+        course_id: UUID,
+        owner_id: UUID,
+    ) -> None:
+        """Verify ``course_id`` exists AND belongs to ``owner_id``.
+
+        Both "no such course" and "owned by another user" raise the
+        same :class:`CourseNotFoundError` so the endpoint can answer
+        404 without leaking which case fired.
+        """
+        course = await self.course_repo.get_for_owner(
+            course_id, owner_id=owner_id
+        )
+        if course is None:
+            raise CourseNotFoundError(course_id)
 
     # ------------------------------------------------------------------ #
     #  Session lifecycle                                                  #
@@ -108,6 +133,8 @@ class ChatService:
         owner: User,
         title: Optional[str] = None,
         initial_query: Optional[str] = None,
+        course_id: Optional[UUID] = None,
+        document_id: Optional[UUID] = None,
     ) -> ChatSession:
         """Create a new chat session for ``owner``.
 
@@ -115,9 +142,23 @@ class ChatService:
         a title derived from the first message and the message itself
         is persisted as a user message (no assistant reply yet — the
         caller is expected to follow up with ``send_message``).
+
+        ``course_id`` (Phase 6B) optionally attaches the session to a
+        course owned by ``owner``. Foreign or missing course ids raise
+        :class:`CourseNotFoundError`.
+
+        ``document_id`` (Phase 6E) optionally attaches the session to a
+        document owned by ``owner``. Foreign or missing document ids raise
+        :class:`DocumentNotFoundError`.
         """
         if initial_query is not None and not initial_query.strip():
             raise ChatMessageEmptyError()
+
+        if course_id is not None:
+            await self._assert_course_owned_by(course_id, owner.id)
+
+        if document_id is not None:
+            await self._authorize_document(document_id, owner.id)
 
         # Treat the schema default ("New chat") as "no explicit title" so
         # a follow-up ``initial_query`` is always reflected in the title.
@@ -133,6 +174,8 @@ class ChatService:
         session = ChatSession(
             user_id=owner.id,
             title=derived_title,
+            course_id=course_id,
+            document_id=document_id,
         )
         session = await self.session_repo.create(session)
         await self.session.commit()
@@ -149,7 +192,8 @@ class ChatService:
             await self.session.commit()
 
         logger.info(
-            "chat.session.created id=%s user=%s", session.id, owner.id,
+            "chat.session.created id=%s user=%s course=%s",
+            session.id, owner.id, course_id,
         )
         return session
 
@@ -159,11 +203,56 @@ class ChatService:
         owner_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        course_id: UUID | None = None,
     ) -> Sequence[ChatSession]:
-        """List sessions owned by ``owner_id``, newest first."""
+        """List sessions owned by ``owner_id``, newest first.
+
+        When ``course_id`` is supplied, restrict to that course. The
+        service first verifies the course is owned by the caller.
+        """
+        if course_id is not None:
+            await self._assert_course_owned_by(course_id, owner_id)
         return await self.session_repo.list_for_user(
-            owner_id, skip=skip, limit=limit,
+            owner_id, skip=skip, limit=limit, course_id=course_id,
         )
+
+    async def update_session(
+        self,
+        *,
+        session_id: UUID,
+        owner_id: UUID,
+        title: Optional[str] = None,
+        course_id: Optional[UUID] = None,
+        set_course: bool = False,
+    ) -> ChatSession:
+        """Update a session's title and/or course link.
+
+        ``title`` is updated when not None. ``course_id`` is only
+        consulted when ``set_course`` is True so the caller can
+        distinguish "leave course alone" (default) from "set course
+        to this value, possibly None".
+        """
+        sess = await self.get_session_for_user(
+            session_id=session_id, owner_id=owner_id,
+        )
+
+        updates: dict[str, object] = {}
+        if title is not None:
+            updates["title"] = title
+        if set_course:
+            if course_id is not None:
+                await self._assert_course_owned_by(course_id, owner_id)
+            updates["course_id"] = course_id
+
+        if not updates:
+            return sess
+        sess = await self.session_repo.update(sess, updates)
+        await self.session.commit()
+        logger.info(
+            "chat.session.updated id=%s user=%s fields=%s",
+            sess.id, owner_id, sorted(updates.keys()),
+        )
+        return sess
 
     async def get_session_for_user(
         self,
@@ -260,6 +349,9 @@ class ChatService:
         #    insert so a 404 path does not leave the user message
         #    persisted.
         if document_id is not None:
+            await self._authorize_document(document_id, owner_id)
+        elif sess.document_id is not None:
+            document_id = sess.document_id
             await self._authorize_document(document_id, owner_id)
 
         # 3. Load recent history BEFORE writing the new user message,

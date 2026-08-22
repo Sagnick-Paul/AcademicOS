@@ -72,3 +72,32 @@ class DocumentNotFoundError(Exception):
     def __init__(self, document_id: object) -> None:
         super().__init__(f"Document {document_id!r} not found")
         self.document_id = document_id
+
+
+# ---------- Courses ----------
+
+
+class CourseNotFoundError(Exception):
+    """Raised when a course lookup misses — either no such id exists,
+    or it exists but belongs to a different user.
+
+    Mirrors :class:`DocumentNotFoundError`: the two cases are
+    deliberately indistinguishable so the endpoint cannot be used to
+    enumerate other users' course ids.
+    """
+
+    def __init__(self, course_id: object) -> None:
+        super().__init__(f"Course {course_id!r} not found")
+        self.course_id = course_id
+
+
+class DuplicateCourseNameError(Exception):
+    """Raised when an owner tries to create or rename a course to a name
+    they already use for another course.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            f"You already have a course named {name!r}"
+        )
+        self.name = name

@@ -33,12 +33,19 @@ class ChatSessionRepository(BaseRepository[ChatSession]):
         *,
         skip: int = 0,
         limit: int = 100,
+        course_id: UUID | str | None = None,
     ) -> Sequence[ChatSession]:
-        """List chat sessions owned by a user, most recently active first."""
+        """List chat sessions owned by a user, most recently active first.
+
+        When ``course_id`` is provided, results are restricted to that
+        course. The caller is responsible for verifying that the
+        course belongs to ``user_id`` — this method does not check.
+        """
+        stmt = select(ChatSession).where(ChatSession.user_id == user_id)
+        if course_id is not None:
+            stmt = stmt.where(ChatSession.course_id == course_id)
         stmt = (
-            select(ChatSession)
-            .where(ChatSession.user_id == user_id)
-            .order_by(ChatSession.updated_at.desc(), ChatSession.id.desc())
+            stmt.order_by(ChatSession.updated_at.desc(), ChatSession.id.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -48,6 +55,18 @@ class ChatSessionRepository(BaseRepository[ChatSession]):
     async def rename(self, session_obj: ChatSession, *, title: str) -> ChatSession:
         """Update a session's title."""
         return await self.update(session_obj, {"title": title})
+
+    async def set_course(
+        self,
+        session_obj: ChatSession,
+        course_id: UUID | str | None,
+    ) -> ChatSession:
+        """Assign (or clear) the session's course link.
+
+        ``None`` unlinks the session. Caller must verify that the
+        course belongs to the session's owner.
+        """
+        return await self.update(session_obj, {"course_id": course_id})
 
 
 class ChatMessageRepository(BaseRepository[ChatMessage]):

@@ -9,13 +9,14 @@ interface DocumentListProps {
   /** Set of document IDs that are currently being deleted. */
   deletingIds: ReadonlySet<string>;
   onRequestDelete: (document: Document) => void;
+  onRequestEdit: (document: Document) => void;
 }
 
 /**
  * Renders the user's documents as a stack of cards. Pure presentational;
  * the parent owns the data and delete lifecycle.
  */
-export function DocumentList({ documents, deletingIds, onRequestDelete }: DocumentListProps) {
+export function DocumentList({ documents, deletingIds, onRequestDelete, onRequestEdit }: DocumentListProps) {
   return (
     <ul className={styles.list} aria-label="Your documents" data-testid="document-list">
       {documents.map((document) => (
@@ -24,6 +25,7 @@ export function DocumentList({ documents, deletingIds, onRequestDelete }: Docume
             document={document}
             deleting={deletingIds.has(document.id)}
             onRequestDelete={onRequestDelete}
+            onRequestEdit={onRequestEdit}
           />
         </li>
       ))}

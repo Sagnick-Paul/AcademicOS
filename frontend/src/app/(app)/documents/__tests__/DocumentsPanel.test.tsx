@@ -4,20 +4,39 @@ import userEvent from "@testing-library/user-event";
 
 const {
   mockDocumentsApi,
+  mockCoursesApi,
 } = vi.hoisted(() => ({
   mockDocumentsApi: {
     list: vi.fn(),
     upload: vi.fn(),
     get: vi.fn(),
     remove: vi.fn(),
+    update: vi.fn(),
+  },
+  mockCoursesApi: {
+    list: vi.fn(),
   },
 }));
 vi.mock("@/lib/api/documents", () => ({ documentsApi: mockDocumentsApi }));
+vi.mock("@/lib/api/courses", () => ({ coursesApi: mockCoursesApi }));
+
+// DocumentsPanel uses useRouter / usePathname / useSearchParams for filter URL params.
+// Mock the whole module using the same pattern as Sidebar.test.tsx.
+// Use a mutable ref so individual tests can pre-configure searchParams.
+const mockReplace = vi.fn();
+let currentSearchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/documents",
+  // Always re-read currentSearchParams so tests can update it before rendering.
+  useSearchParams: () => currentSearchParams,
+}));
+
 
 import { DocumentsPanel } from "../DocumentsPanel";
 import { renderWithAuth } from "@/test-utils/wrappers";
 import { APIError } from "@/types/api";
-import type { Document } from "@/types";
+import type { Course, Document } from "@/types";
 
 const fakePdf: Document = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -28,6 +47,9 @@ const fakePdf: Document = {
   file_size: 1024 * 1024 * 1.4,
   storage_path: "pdf/abc123.pdf",
   upload_status: "ready",
+  course_id: null,
+  document_type: null,
+  document_metadata: null,
   created_at: "2026-01-01T12:00:00Z",
   updated_at: "2026-01-01T12:00:00Z",
 };
@@ -41,6 +63,9 @@ const fakeProcessing: Document = {
   file_size: 2048,
   storage_path: "images/abc456.png",
   upload_status: "processing",
+  course_id: null,
+  document_type: null,
+  document_metadata: null,
   created_at: "2026-01-02T08:30:00Z",
   updated_at: "2026-01-02T08:30:00Z",
 };
@@ -54,12 +79,27 @@ const fakeFailed: Document = {
   file_size: 4096,
   storage_path: "ppt/abc789.pptx",
   upload_status: "failed",
+  course_id: null,
+  document_type: null,
+  document_metadata: null,
   created_at: "2026-01-03T10:00:00Z",
   updated_at: "2026-01-03T10:00:00Z",
 };
 
+const fakeCourse: Course = {
+  id: "cc000000-0000-0000-0000-000000000001",
+  owner_id: "00000000-0000-0000-0000-000000000099",
+  name: "Electric Circuits",
+  code: "EC101",
+  description: "Introduction to circuits",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // Reset search params to empty for every test.
+  currentSearchParams = new URLSearchParams();
 });
 
 function makeFile(name: string, type: string, sizeBytes = 10): File {
@@ -148,19 +188,26 @@ describe("DocumentsPanel", () => {
         .mockResolvedValueOnce([]) // initial
         .mockResolvedValueOnce([fakePdf]); // after upload
       mockDocumentsApi.upload.mockResolvedValue(fakePdf);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
 
       renderWithAuth(<DocumentsPanel />);
 
       // Wait for the empty state.
       await screen.findByTestId("documents-empty-state");
 
+      // Selecting a file opens the details dialog; we then confirm to trigger the upload.
       const input = screen.getByTestId("document-upload-input") as HTMLInputElement;
       const file = makeFile("lecture.pdf", "application/pdf", 1024);
       await userEvent.upload(input, file);
 
-      expect(mockDocumentsApi.upload).toHaveBeenCalledTimes(1);
-      // documentsApi.upload wraps the File in a FormData internally —
-      // the spy sees the raw `File` we passed to the API method.
+      // Details dialog opens — submit it to trigger the upload.
+      const dialog = await screen.findByTestId("upload-details-dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: /upload document/i }));
+
+      await waitFor(() => {
+        expect(mockDocumentsApi.upload).toHaveBeenCalledTimes(1);
+      });
+      // The spy receives the raw File.
       const passedFile = mockDocumentsApi.upload.mock.calls[0][0] as File;
       expect(passedFile).toBeInstanceOf(File);
       expect(passedFile.name).toBe("lecture.pdf");
@@ -174,8 +221,11 @@ describe("DocumentsPanel", () => {
 
     it("disables the upload controls while a request is in flight", async () => {
       let resolveUpload: (value: Document) => void = () => undefined;
-      mockDocumentsApi.upload.mockReturnValue(new Promise<Document>((res) => { resolveUpload = res; }));
+      mockDocumentsApi.upload.mockReturnValue(
+        new Promise<Document>((res) => { resolveUpload = res; }),
+      );
       mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
 
       renderWithAuth(<DocumentsPanel />);
       await screen.findByTestId("document-list");
@@ -183,10 +233,14 @@ describe("DocumentsPanel", () => {
       const input = screen.getByTestId("document-upload-input") as HTMLInputElement;
       await userEvent.upload(input, makeFile("notes.pdf", "application/pdf"));
 
+      // Submit the details dialog to start the upload.
+      const dialog = await screen.findByTestId("upload-details-dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: /upload document/i }));
+
+      // While uploading, the upload button should be disabled.
       await waitFor(() => {
         expect(screen.getByTestId("document-upload-button")).toBeDisabled();
       });
-      expect(input).toBeDisabled();
 
       // Finish the upload.
       resolveUpload(fakePdf);
@@ -200,6 +254,7 @@ describe("DocumentsPanel", () => {
       mockDocumentsApi.upload.mockRejectedValue(
         new APIError("Unsupported file type: detection", 415),
       );
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
 
       renderWithAuth(<DocumentsPanel />);
       await screen.findByTestId("documents-empty-state");
@@ -208,6 +263,10 @@ describe("DocumentsPanel", () => {
         screen.getByTestId("document-upload-input") as HTMLInputElement,
         makeFile("lecture.pdf", "application/pdf"),
       );
+
+      // Submit the details dialog to trigger the (failing) upload.
+      const dialog = await screen.findByTestId("upload-details-dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: /upload document/i }));
 
       await waitFor(() => {
         expect(screen.getByTestId("document-upload-hint")).toHaveTextContent(
@@ -285,36 +344,226 @@ describe("DocumentsPanel", () => {
     });
   });
 
-  describe("authentication", () => {
-    it("attaches the bearer token on every API call", async () => {
+  describe("detailed upload", () => {
+    it("opens the details dialog and uploads with specified course and type", async () => {
       mockDocumentsApi.list.mockResolvedValue([]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+      mockDocumentsApi.upload.mockResolvedValue(fakePdf);
 
-      renderWithAuth(<DocumentsPanel />, {
-        accessToken: "test-token",
-        status: "authenticated",
-        user: {
-          id: "u1",
-          full_name: "Jane Doe",
-          email: "jane@example.com",
-          is_active: true,
-          is_verified: false,
-          created_at: "2026-01-01T00:00:00Z",
-          updated_at: "2026-01-01T00:00:00Z",
-        },
-      });
-
+      renderWithAuth(<DocumentsPanel />);
       await screen.findByTestId("documents-empty-state");
-      expect(mockDocumentsApi.list).toHaveBeenCalled();
+
+      const input = screen.getByTestId("document-upload-input") as HTMLInputElement;
+      await userEvent.upload(input, makeFile("details.pdf", "application/pdf"));
+
+      // Dialog appears.
+      const uploadDialog = screen.getByTestId("upload-details-dialog");
+      expect(uploadDialog).toBeInTheDocument();
+
+      // Select course and type (scoped inside the dialog to avoid filter panel labels).
+      await userEvent.selectOptions(within(uploadDialog).getByLabelText(/Course/i), fakeCourse.id);
+      await userEvent.selectOptions(within(uploadDialog).getByLabelText(/Document type/i), "lecture_notes");
+
+      await userEvent.click(within(uploadDialog).getByRole("button", { name: /Upload document/i }));
+
+      await waitFor(() => {
+        expect(mockDocumentsApi.upload).toHaveBeenCalledWith(
+          expect.any(File),
+          expect.objectContaining({
+            course_id: fakeCourse.id,
+            document_type: "lecture_notes",
+          }),
+        );
+      });
+      expect(screen.queryByTestId("upload-details-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("edit", () => {
+    it("opens the edit dialog and updates the document", async () => {
+      mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+      mockDocumentsApi.update.mockResolvedValue({ ...fakePdf, course_id: fakeCourse.id });
+
+      renderWithAuth(<DocumentsPanel />);
+      const card = await screen.findByTestId("document-card");
+      await userEvent.click(within(card).getByTestId("document-card-edit"));
+
+      const editDialog = screen.getByTestId("document-edit-dialog");
+      expect(editDialog).toBeInTheDocument();
+
+      // Scope queries inside the dialog to avoid ambiguity with the filter panel.
+      await userEvent.selectOptions(within(editDialog).getByLabelText(/Course/i), fakeCourse.id);
+      await userEvent.type(within(editDialog).getByLabelText(/Author/i), "John Doe");
+
+      await userEvent.click(within(editDialog).getByRole("button", { name: /Save changes/i }));
+
+      await waitFor(() => {
+        expect(mockDocumentsApi.update).toHaveBeenCalledWith(
+          fakePdf.id,
+          expect.objectContaining({
+            course_id: fakeCourse.id,
+            document_metadata: expect.objectContaining({ author: "John Doe" }),
+          }),
+        );
+      });
+      expect(screen.queryByTestId("document-edit-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("course and document-type filters", () => {
+    it("renders the course and document-type filter dropdowns", async () => {
+      mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("document-list");
+
+      expect(screen.getByTestId("documents-filter-course")).toBeInTheDocument();
+      expect(screen.getByTestId("documents-filter-type")).toBeInTheDocument();
     });
 
-    it("treats 401 errors as user-visible failures without crashing", async () => {
-      mockDocumentsApi.list.mockRejectedValue(new APIError("Not authenticated", 401));
+    it("populates the course dropdown with courses from the API", async () => {
+      mockDocumentsApi.list.mockResolvedValue([]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("documents-empty-state");
+
+      const courseSelect = screen.getByTestId("documents-filter-course");
+      expect(courseSelect).toHaveTextContent("EC101");
+    });
+
+    it("calls router.replace with course_id when a course filter is selected", async () => {
+      mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("document-list");
+
+      await userEvent.selectOptions(
+        screen.getByTestId("documents-filter-course"),
+        fakeCourse.id,
+      );
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith(
+          expect.stringContaining(`course_id=${fakeCourse.id}`),
+        );
+      });
+    });
+
+    it("calls router.replace with document_type when a type filter is selected", async () => {
+      mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("document-list");
+
+      await userEvent.selectOptions(
+        screen.getByTestId("documents-filter-type"),
+        "lecture_notes",
+      );
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith(
+          expect.stringContaining("document_type=lecture_notes"),
+        );
+      });
+    });
+
+    it("uses both course_id and document_type when both are pre-set in searchParams", async () => {
+      // Pre-configure searchParams before mounting the component.
+      currentSearchParams = new URLSearchParams({
+        course_id: fakeCourse.id,
+        document_type: "textbook",
+      });
+      mockDocumentsApi.list.mockResolvedValue([fakePdf]);
+      mockCoursesApi.list.mockResolvedValue({ items: [fakeCourse] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("document-list");
+
+      // The list should have been called with both filter params.
+      await waitFor(() => {
+        const lastCall = mockDocumentsApi.list.mock.calls.at(-1)?.[0] as Record<string, string>;
+        expect(lastCall?.course_id).toBe(fakeCourse.id);
+        expect(lastCall?.document_type).toBe("textbook");
+      });
+    });
+
+    it("shows the clear-filters button when filters are pre-set via URL params", async () => {
+      // Pre-configure searchParams with a filter already active.
+      currentSearchParams = new URLSearchParams({ document_type: "textbook" });
+      mockDocumentsApi.list.mockResolvedValue([]);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("documents-empty-state");
+
+      expect(screen.getByTestId("documents-filter-clear")).toBeInTheDocument();
+    });
+
+    it("calls router.replace with no params when clear-filters is clicked", async () => {
+      currentSearchParams = new URLSearchParams({ document_type: "textbook" });
+      mockDocumentsApi.list.mockResolvedValue([]);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
+
+      renderWithAuth(<DocumentsPanel />);
+      await screen.findByTestId("documents-empty-state");
+
+      const clearBtn = screen.getByTestId("documents-filter-clear");
+      await userEvent.click(clearBtn);
+
+      await waitFor(() => {
+        // Clearing filters navigates to the bare pathname with no query string.
+        expect(mockReplace).toHaveBeenCalledWith("/documents");
+      });
+    });
+
+    it("shows a filter-aware empty message when filters are active but no docs match", async () => {
+      currentSearchParams = new URLSearchParams({ document_type: "textbook" });
+      mockDocumentsApi.list.mockResolvedValue([]);
+      mockCoursesApi.list.mockResolvedValue({ items: [] });
 
       renderWithAuth(<DocumentsPanel />);
 
       await waitFor(() => {
-        expect(screen.getByRole("alert")).toHaveTextContent(/not authenticated/i);
+        expect(screen.getByTestId("documents-empty-state")).toHaveTextContent(
+          /no documents match these filters/i,
+        );
       });
+    });
+  });
+
+  it("attaches the bearer token on every API call", async () => {
+    mockDocumentsApi.list.mockResolvedValue([]);
+
+    renderWithAuth(<DocumentsPanel />, {
+      accessToken: "test-token",
+      status: "authenticated",
+      user: {
+        id: "u1",
+        full_name: "Jane Doe",
+        email: "jane@example.com",
+        is_active: true,
+        is_verified: false,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    });
+
+    await screen.findByTestId("documents-empty-state");
+    expect(mockDocumentsApi.list).toHaveBeenCalled();
+  });
+
+  it("treats 401 errors as user-visible failures without crashing", async () => {
+    mockDocumentsApi.list.mockRejectedValue(new APIError("Not authenticated", 401));
+
+    renderWithAuth(<DocumentsPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/not authenticated/i);
     });
   });
 

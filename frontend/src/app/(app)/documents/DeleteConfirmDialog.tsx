@@ -9,6 +9,7 @@ interface DeleteConfirmDialogProps {
   documentName: string;
   /** True while the delete request is in flight. */
   pending: boolean;
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +24,7 @@ interface DeleteConfirmDialogProps {
 export function DeleteConfirmDialog({
   documentName,
   pending,
+  error = null,
   onConfirm,
   onCancel,
 }: DeleteConfirmDialogProps) {
@@ -77,8 +79,12 @@ export function DeleteConfirmDialog({
           ) : (
             <>This document will be permanently removed from your library.</>
           )}{" "}
-          This cannot be undone.
         </p>
+        {error ? (
+          <div className={styles.error} role="alert" data-testid="delete-confirm-error">
+            {error}
+          </div>
+        ) : null}
         <div className={styles.actions}>
           <Button
             ref={cancelRef}

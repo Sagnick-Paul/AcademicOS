@@ -32,6 +32,10 @@ export const API_PATHS = {
     upload: "/documents/upload",
     byId: (id: string) => `/documents/${id}`,
   },
+  courses: {
+    list: "/courses",
+    byId: (id: string) => `/courses/${id}`,
+  },
   search: "/search",
   chat: {
     oneShot: "/chat",

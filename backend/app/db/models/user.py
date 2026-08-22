@@ -15,6 +15,7 @@ from app.db.base import Base, TimestampMixin, UUIDPKMixin
 
 if TYPE_CHECKING:
     from app.db.models.chat import ChatSession
+    from app.db.models.course import Course
     from app.db.models.document import Document
 
 
@@ -50,6 +51,12 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     # deleting a user removes their documents and chat sessions.
     documents: Mapped[List["Document"]] = relationship(
         "Document",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    courses: Mapped[List["Course"]] = relationship(
+        "Course",
         back_populates="owner",
         cascade="all, delete-orphan",
         lazy="selectin",

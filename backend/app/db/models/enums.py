@@ -32,3 +32,25 @@ class ChatRole(_StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+
+
+class DocumentType(_StrEnum):
+    """Academic classification of a Document.
+
+    Phase 6C — replaces the loose ``file_type`` (which keeps the
+    storage-format suffix "pdf"/"png"/"docx") with a higher-level
+    semantic category that reflects how the user thinks about the
+    artefact. Stored as ``str`` for forward compatibility.
+
+    Values are deliberately small: the field captures *what kind of
+    academic artefact this is*, not arbitrary tags. Use the dedicated
+    ``metadata.tags`` list for free-form labels.
+    """
+
+    LECTURE_NOTES = "lecture_notes"
+    TEXTBOOK = "textbook"
+    PRESENTATION = "presentation"
+    ASSIGNMENT = "assignment"
+    PREVIOUS_YEAR_QUESTION = "previous_year_question"
+    REFERENCE = "reference"
+    OTHER = "other"

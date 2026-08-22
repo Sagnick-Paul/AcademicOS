@@ -61,7 +61,7 @@ from app.services.chat_exceptions import (
 )
 from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
-from app.services.exceptions import DocumentNotFoundError
+from app.services.exceptions import CourseNotFoundError, DocumentNotFoundError
 
 router = APIRouter()
 
@@ -232,12 +232,17 @@ async def create_session(
 
     Optionally accepts an ``initial_query`` that is persisted as the
     first user message; the assistant reply is *not* generated here.
+    ``course_id`` (Phase 6B) optionally attaches the new session to
+    a course owned by the caller — a missing or foreign course id
+    returns 404.
     """
     try:
         sess = await chat_service.create_session(
             owner=current_user,
             title=payload.title,
             initial_query=payload.initial_query,
+            course_id=payload.course_id,
+            document_id=payload.document_id,
         )
     except ChatMessageEmptyError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -252,9 +257,20 @@ async def create_session(
 async def list_sessions(
     current_user: User = Depends(get_current_active_user),
     chat_service: ChatService = Depends(get_chat_service),
+    course_id: UUID | None = None,
 ) -> list[ChatSessionResponse]:
-    """List sessions owned by the authenticated user, newest first."""
-    sessions = await chat_service.list_user_sessions(owner_id=current_user.id)
+    """List sessions owned by the authenticated user, newest first.
+
+    Phase 6B: ``?course_id=<uuid>`` filters to sessions belonging to
+    the named course. The course must be owned by the caller — a
+    foreign or missing course id returns 404.
+    """
+    try:
+        sessions = await chat_service.list_user_sessions(
+            owner_id=current_user.id, course_id=course_id,
+        )
+    except CourseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return [_session_to_response(s) for s in sessions]
 
 
@@ -282,7 +298,7 @@ async def get_session(
 @router.patch(
     "/sessions/{session_id}",
     response_model=ChatSessionResponse,
-    summary="Rename a chat session",
+    summary="Update a chat session",
 )
 async def update_session(
     payload: ChatSessionUpdate,
@@ -290,17 +306,23 @@ async def update_session(
     current_user: User = Depends(get_current_active_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatSessionResponse:
-    """Update a session's title. Owner-only."""
+    """Update a session's title and/or course link. Owner-only.
+
+    Phase 6B: ``course_id`` may be ``null`` (unlink) or a UUID the
+    caller owns. A foreign or missing course id returns 404.
+    """
     try:
-        sess = await chat_service.get_session_for_user(
-            session_id=session_id, owner_id=current_user.id,
+        sess = await chat_service.update_session(
+            session_id=session_id,
+            owner_id=current_user.id,
+            title=payload.title,
+            course_id=payload.course_id,
+            set_course="course_id" in payload.model_fields_set,
         )
     except ChatSessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Chat session not found") from exc
-
-    if payload.title is not None:
-        sess = await chat_service.session_repo.rename(sess, title=payload.title)
-        await chat_service.session.commit()
+    except CourseNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _session_to_response(sess)
 
 

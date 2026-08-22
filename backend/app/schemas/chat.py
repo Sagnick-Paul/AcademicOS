@@ -26,7 +26,11 @@ class ChatSessionBase(BaseModel):
 
 
 class ChatSessionCreate(ChatSessionBase):
-    """Payload for creating a chat session. `user_id` is set from auth."""
+    """Payload for creating a chat session. `user_id` is set from auth.
+
+    Phase 6B: ``course_id`` is an optional course to attach this
+    session to. The service layer validates ownership before writing.
+    """
 
     initial_query: Optional[Annotated[str, Field(min_length=1)]] = Field(
         None,
@@ -35,14 +39,33 @@ class ChatSessionCreate(ChatSessionBase):
             "with a derived title and the message is persisted."
         ),
     )
+    course_id: Optional[UUID] = Field(
+        None,
+        description=(
+            "Optional course to attach the session to. Must be owned "
+            "by the authenticated user."
+        ),
+    )
+    document_id: Optional[UUID] = Field(
+        None,
+        description=(
+            "Optional document to attach the session to. Must be owned "
+            "by the authenticated user."
+        ),
+    )
 
 
 class ChatSessionUpdate(BaseModel):
-    """Partial update — typically renaming a session."""
+    """Partial update — typically renaming a session.
+
+    Phase 6B: ``course_id`` accepts a UUID (assign), or ``null``
+    (unlink). The service layer validates ownership before writing.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     title: TitleStr | None = None
+    course_id: Optional[UUID] = None
 
 
 class ChatSessionResponse(ChatSessionBase):
@@ -52,6 +75,10 @@ class ChatSessionResponse(ChatSessionBase):
 
     id: UUID
     user_id: UUID
+    # Phase 6B: nullable course link. ``null`` means "uncoursed".
+    course_id: Optional[UUID] = None
+    # Phase 6E: nullable document link. ``null`` means "undocumented".
+    document_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

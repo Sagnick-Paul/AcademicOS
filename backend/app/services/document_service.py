@@ -5,6 +5,9 @@ Owns:
 * validating uploads (size, content, type)
 * coordinating the storage layer and the ORM model
 * enforcing per-user ownership on every read / delete
+* enforcing course ownership on every course assignment (Phase 6B)
+* validating and applying the Phase 6C classification + metadata
+  fields, with correct omit-vs-null PATCH semantics
 
 The endpoint layer is thin — it calls the service, translates domain
 exceptions into HTTP responses, and commits the session. No business
@@ -20,10 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.db.models.document import Document
-from app.db.models.enums import DocumentUploadStatus
+from app.db.models.enums import DocumentType, DocumentUploadStatus
 from app.db.models.user import User
+from app.db.repositories.course_repository import CourseRepository
 from app.db.repositories.document_repository import DocumentRepository
+from app.schemas.document import DocumentUpdate
 from app.services.exceptions import (
+    CourseNotFoundError,
     DocumentNotFoundError,
     EmptyFileError,
     FileTooLargeError,
@@ -41,12 +47,33 @@ class DocumentService:
         session: AsyncSession,
         *,
         storage: Storage | None = None,
+        course_repo: CourseRepository | None = None,
     ) -> None:
         self.session = session
         self.repo = DocumentRepository(session)
         # Late-bound via the factory so tests can swap the backend.
         self.storage = storage or get_storage()
+        self.course_repo = course_repo or CourseRepository(session)
         self.logger = get_logger(__name__)
+
+    # ---------- Course ownership ----------
+
+    async def _assert_course_owned_by(
+        self,
+        course_id: UUID,
+        owner_id: UUID,
+    ) -> None:
+        """Verify ``course_id`` exists AND belongs to ``owner_id``.
+
+        Both "no such course" and "owned by another user" raise the
+        same :class:`CourseNotFoundError` so the endpoint can answer
+        404 without leaking which case fired.
+        """
+        course = await self.course_repo.get_for_owner(
+            course_id, owner_id=owner_id
+        )
+        if course is None:
+            raise CourseNotFoundError(course_id)
 
     # ---------- Upload ----------
 
@@ -57,8 +84,17 @@ class DocumentService:
         content: bytes,
         original_filename: str,
         content_type: str | None,
+        document_type: DocumentType | None = None,
+        document_metadata: dict | None = None,
     ) -> Document:
         """Validate an upload, persist the bytes, return a new ORM instance.
+
+        Phase 6C adds optional ``document_type`` and ``document_metadata``
+        arguments. When ``document_type`` is omitted the row is stamped
+        with ``DocumentType.OTHER`` — the deliberate default — so new
+        uploads are never uncategorised. ``document_metadata`` is
+        stored as-is (already validated by the Pydantic schema at the
+        edge).
 
         Raises:
             EmptyFileError: zero bytes.
@@ -101,15 +137,18 @@ class DocumentService:
             file_size=size,
             storage_path=storage_path,
             upload_status=DocumentUploadStatus.UPLOADING,
+            document_type=document_type or DocumentType.OTHER,
+            document_metadata=document_metadata,
         )
         doc = await self.repo.create(doc)
 
         self.logger.info(
-            "document.uploaded id=%s owner=%s size=%s type=%s",
+            "document.uploaded id=%s owner=%s size=%s type=%s doc_type=%s",
             doc.id,
             owner.id,
             size,
             file_type,
+            doc.document_type,
         )
         return doc
 
@@ -121,9 +160,25 @@ class DocumentService:
         owner_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        course_id: UUID | None = None,
+        document_type: DocumentType | None = None,
     ) -> Sequence[Document]:
-        """Return the caller's documents, newest first."""
-        return await self.repo.list_for_owner(owner_id, skip=skip, limit=limit)
+        """Return the caller's documents, newest first.
+
+        When ``course_id`` is supplied, restrict to that course. The
+        service first verifies the course is owned by the caller, then
+        delegates the actual filter to the repository. The Phase 6C
+        ``document_type`` filter composes with ``course_id``.
+        """
+        if course_id is not None:
+            await self._assert_course_owned_by(course_id, owner_id)
+        return await self.repo.list_for_owner(
+            owner_id,
+            skip=skip,
+            limit=limit,
+            course_id=course_id,
+            document_type=document_type,
+        )
 
     # ---------- Fetch (ownership-enforced) ----------
 
@@ -142,6 +197,94 @@ class DocumentService:
         doc = await self.repo.get_by_id(document_id)
         if doc is None or doc.owner_id != owner_id:
             raise DocumentNotFoundError(document_id)
+        return doc
+
+    # ---------- Update (course link) ----------
+
+    async def update_document_course(
+        self,
+        *,
+        document_id: UUID,
+        owner_id: UUID,
+        course_id: UUID | None,
+    ) -> Document:
+        """Assign, change, or clear a document's course link.
+
+        Raises:
+            DocumentNotFoundError: missing or not-owned document.
+            CourseNotFoundError: ``course_id`` was provided but does
+                not belong to ``owner_id`` (or does not exist).
+        """
+        doc = await self.get_document_for_owner(
+            document_id=document_id, owner_id=owner_id,
+        )
+        if course_id is not None:
+            await self._assert_course_owned_by(course_id, owner_id)
+
+        doc = await self.repo.set_course(doc, course_id)
+        self.logger.info(
+            "document.course_set id=%s owner=%s course=%s",
+            doc.id, owner_id, course_id,
+        )
+        return doc
+
+    # ---------- Update (Phase 6C classification + metadata) ----------
+
+    async def update_document(
+        self,
+        *,
+        document_id: UUID,
+        owner_id: UUID,
+        payload: DocumentUpdate,
+    ) -> Document:
+        """Apply a Phase 6C-aware partial update.
+
+        Single funnel for PATCH /documents/{id}. It resolves the
+        omit-vs-null-vs-value distinction on every Phase 6C field
+        (mirroring the Phase 6B course_id pattern) and writes only
+        what actually changed.
+
+        Distinctions:
+        * Field omitted (``not in model_fields_set``) → leave alone.
+        * Field explicitly ``null`` → write NULL.
+        * Field provided → write through.
+        """
+        doc = await self.get_document_for_owner(
+            document_id=document_id, owner_id=owner_id,
+        )
+
+        fields_set = payload.model_fields_set
+        updates: dict = {}
+
+        # ``document_type``
+        if "document_type" in fields_set:
+            updates["document_type"] = payload.document_type
+
+        # ``document_metadata``: Pydantic nested model → dict, or None.
+        if "document_metadata" in fields_set:
+            if payload.document_metadata is None:
+                updates["document_metadata"] = None
+            else:
+                updates["document_metadata"] = (
+                    payload.document_metadata.model_dump(exclude_none=True)
+                )
+
+        # ``course_id``
+        if "course_id" in fields_set:
+            if payload.course_id is not None:
+                await self._assert_course_owned_by(payload.course_id, owner_id)
+            updates["course_id"] = payload.course_id
+
+        if not updates:
+            return doc
+
+        doc = await self.repo.update(doc, updates)
+        self.logger.info(
+            "document.classification_set id=%s owner=%s fields=%s",
+            doc.id,
+            owner_id,
+            sorted(updates.keys()),
+        )
         return doc
 
     # ---------- Delete (file then row) ----------

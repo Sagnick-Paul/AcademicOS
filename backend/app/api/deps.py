@@ -24,6 +24,7 @@ from app.db.models.user import User
 from app.db.repositories.user_repository import UserRepository
 from app.db.session import get_db
 from app.services.auth_service import AuthService
+from app.services.course_service import CourseService
 from app.services.document_service import DocumentService
 from app.services.retrieval_service import RetrievalService
 
@@ -35,6 +36,7 @@ __all__ = [
     "get_user_repository",
     "get_auth_service",
     "get_document_service",
+    "get_course_service",
     "get_retrieval_service",
     "get_rag_service",
     "get_chat_service",
@@ -100,6 +102,13 @@ def get_document_service(
 ) -> DocumentService:
     """FastAPI dependency yielding a fresh :class:`DocumentService`."""
     return DocumentService(session)
+
+
+def get_course_service(
+    session: AsyncSession = Depends(_db_session_dep),
+) -> CourseService:
+    """FastAPI dependency yielding a fresh :class:`CourseService`."""
+    return CourseService(session)
 
 
 def get_retrieval_service() -> RetrievalService:

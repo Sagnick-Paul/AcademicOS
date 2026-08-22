@@ -32,9 +32,21 @@
   font-weight: 600;
   color: var(--fg-primary);
   margin: 0;
-  word-break: break-all;
-  flex: 1 1 auto;
-  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titleLink {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.titleLink:hover,
+.titleLink:focus {
+  color: var(--accent-primary);
+  text-decoration: underline;
 }
 
 .status {

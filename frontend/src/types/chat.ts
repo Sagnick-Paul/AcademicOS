@@ -31,6 +31,10 @@ export interface ChatSession {
   id: UUID;
   user_id: UUID;
   title: string;
+  /** Phase 6B: optional course link. `null` = uncoursed. */
+  course_id: UUID | null;
+  /** Phase 6E: optional document link. `null` = undocumented. */
+  document_id: UUID | null;
   created_at: string;
   updated_at: string;
 }
@@ -97,8 +101,16 @@ export interface SendMessageResponse {
 export interface CreateSessionPayload {
   title?: string;
   initial_query?: string;
+  /** Phase 6B: optional course link. */
+  course_id?: UUID | null;
+  /** Phase 6E: optional document link. */
+  document_id?: UUID | null;
 }
 
 export interface UpdateSessionPayload {
   title?: string;
+  /** Phase 6B: course link. `null` = unlink. Omit = leave alone. */
+  course_id?: UUID | null;
+  /** Phase 6E: document link. `null` = unlink. Omit = leave alone. */
+  document_id?: UUID | null;
 }
